@@ -1,64 +1,291 @@
-import socket
-import select
+import os
+import time
+import threading
+from http.server import ThreadingHTTPServer
+from http.server import BaseHTTPRequestHandler
+from routes.main import routes
+from appJar import gui
 
-class SocketServer:
+"""Initialize the GUI"""
+app = gui("Tiny Web Server", "900x600")
+app.setGuiPadding(10, 10)
+app.setFont(8)
 
-    def __init__(self, host = '0.0.0.0', port = 8080):
-        # Initialize the server with a host and a port to listen to
-        self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        self.host = host
-        self.port = port
-        self.sock.bind((host,port))
-        self.sock.listen(1)
+app.startLabelFrame("Server Status", row=0, column=0, colspan=2)
+app.setSticky("W")
+app.setBg("white")
+app.addMessage("c1", "")
+app.setMessageWidth("c1", 500)
+app.addMessage("c2", "")
+app.setMessageWidth("c2", 500)
+app.stopLabelFrame()
 
-    def close(self):
-        # Close the server socket
-        print('Closing the server socket (host {}, port {})'.format(self.host, self.port))
-        if self.sock:
-            self.sock.close()
-            self.sock = None
+app.startLabelFrame("Connections", row=1, column=0)
+app.setFont(8)
+app.setBg("white")
+app.addMessage("m1", "")
+app.setMessageWidth("m1", 500)
+app.addMessage("m2", "")
+app.setMessageWidth("m2", 500)
+app.addMessage("m3", "")
+app.setMessageWidth("m3", 500)
+app.addMessage("m4", "")
+app.setMessageWidth("m4", 500)
+app.addMessage("m5", "")
+app.setMessageWidth("m5", 500)
+app.addMessage("m6", "")
+app.setMessageWidth("m6", 500)
+app.addMessage("m7", "")
+app.setMessageWidth("m7", 500)
+app.addMessage("m8", "")
+app.setMessageWidth("m8", 500)
+app.addMessage("m9", "")
+app.setMessageWidth("m9", 500)
+app.addMessage("m10", "")
+app.setMessageWidth("m10", 500)
+app.stopLabelFrame()
 
-    def run_server(self):
-        # Accept and handle and incoming connection.
-        print('Starting socket server (host{}, port{})'.format(self.host, self.port))
-        client_sock, client_addr = self.sock.accept()
-        print('Client {} conected'.format(client_addr))
+app.startLabelFrame("Errors", row=1, column=1)
+app.setFont(8)
+app.setBg("white")
+app.addMessage("m11", "")
+app.setMessageWidth("m11", 500)
+app.addMessage("m12", "")
+app.setMessageWidth("m12", 500)
+app.addMessage("m13", "")
+app.setMessageWidth("m13", 500)
+app.addMessage("m14", "")
+app.setMessageWidth("m14", 500)
+app.addMessage("m15", "")
+app.setMessageWidth("m15", 500)
+app.addMessage("m16", "")
+app.setMessageWidth("m16", 500)
+app.addMessage("m17", "")
+app.setMessageWidth("m17", 500)
+app.addMessage("m18", "")
+app.setMessageWidth("m18", 500)
+app.addMessage("m19", "")
+app.setMessageWidth("m19", 500)
+app.addMessage("m20", "")
+app.setMessageWidth("m20", 500)
+app.stopLabelFrame()
 
-        stop = False
-        while not stop:
-            if client_sock:
-                # Check if the client is still connected and if the data is available:
-                try:
-                    redy_read, rdy_write, sock_err = select.select([client_sock], [], [])
-                except select.error:
-                    print('Select() failed on socket with {}'.format(client_addr))
-                    return 1
+"""Methods for updating the Connections Box"""
+def mesLineMod(count):
+    if count == 9:
+        return 1
+    else:
+        print(str(count)+"count++")
+        return count + 1
 
-                if len(rdy_read) > 0:
-                    read_data = client_sock.recv(255)
+mesLineCount = 1
+mesLines = 1
 
-                    # Check if socket has been closed
-                    if len(read_data) == 0:
-                        print('{} closed the socket.'.format(client_addr))
-                        stop = True
-                    else:
-                        print('>>> Recieved: {}'.format(read_data.rstrip()))
-                        if read_data.rstrip() == 'quit':
-                            stop = True
-                        else:
-                            client_sock.send(read_data)
+def conUpdate(newString):
+    global mesLineCount
+    global mesLines
+    for i in reversed(range(mesLines + 1)):
+        if i == 0:
+            break
+        message = app.getMessage("m"+str(i))
+        if message is not "":
+            if mesLineCount != 10:
+                app.setMessage("m"+str(i+1), message)
+                app.setMessage("m" + str(i), newString)
+        else:
+            app.setMessage("m" + str(i), newString)
+    mesLineCount = mesLineMod(mesLineCount)
+    if mesLines < 9:
+        mesLines = mesLines + 1
+
+"""Methods for updating the Errors Box"""
+def errLineMod(count):
+    if count == 9:
+        return 1
+    else:
+        return count + 1
+
+errLineCount = 1
+errLines = 1
+
+def errUpdate(newString):
+    global errLineCount
+    global errLines
+    for i in reversed(range(errLines + 1)):
+        if i == 0:
+            break
+        message = app.getMessage("m"+str(i+10))
+        if message is not "":
+            if errLineCount != 10:
+                app.setMessage("m"+str(i+11), message)
+                app.setMessage("m" + str(i+10), newString)
+        else:
+            app.setMessage("m" + str(i+10), newString)
+    errLineCount = errLineMod(errLineCount)
+    if errLines < 9:
+        errLines = errLines + 1
+
+"""Request Handler File"""
+class MockFile():
+    def read(self):
+        return False
+
+class RequestHandler():
+    def __init__(self):
+        self.contentType = ""
+        self.contents = MockFile()
+
+    def getContents(self):
+        return self.contents.read()
+
+    def read(self):
+        return self.contents
+
+    def setStatus(self, status):
+        self.status = status
+
+    def getStatus(self):
+        return self.status
+
+    def getContentType(self):
+        return self.contentType
+
+    def getType(self):
+        return 'static'
+
+"""Template Handler File"""
+class TemplateHandler(RequestHandler):
+    def __init__(self):
+        super().__init__()
+        self.contentType = 'text/html'
+
+    def find(self, routeData):
+        try:
+            template_file = open('templates/{}'.format(routeData['template']))
+            self.contents = template_file
+            self.setStatus(200)
+            return True
+        except:
+            self.setStatus(404)
+            return False
+
+"""Static Handler File"""
+class StaticHandler(RequestHandler):
+    def __init__(self):
+        self.filetypes = {
+            ".js" : "text/javascript",
+            ".css" : "text/css",
+            ".jpg" : "image/jpeg",
+            ".png" : "image/png",
+            "notfound" : "text/plain"
+        }
+
+    def find(self, file_path):
+        split_path = os.path.splitext(file_path)
+        extension = split_path[1]
+
+        try:
+            if extension in (".jpg", ".jpeg", ".png"):
+                self.contents = open("public{}".format(file_path), 'rb')
             else:
-                print("No client is connected, SocketServer can't recieve data")
-                stop = True
-        # Close Socket
-        print('Closing connection with {}'.format(client_addr))
-        client_sock.close()
-        return 0
+                self.contents = open("public{}".format(file_path), 'r')
 
-def main():
-    server = SocketServer()
-    server.run_server()
-    print ('Exiting')
-if __name__ == "__main__":
-    main()
+            self.setContentType(extension)
+            self.setStatus(200)
+            return True
+        except:
+            self.setContentType('notfound')
+            self.setStatus(404)
+            return False
+
+    def setContentType(self, ext):
+        self.contentType = self.filetypes[ext]
+
+"""Bad Request Handler File"""
+class BadRequestHandler(RequestHandler):
+    def __init__(self):
+        super().__init__()
+        self.contentType = 'text/plain'
+        self.setStatus(404)
+
+"""SERVER FILE"""
+class Server(BaseHTTPRequestHandler):
+    def do_HEAD(self):
+        return
+
+    def do_GET(self):
+        split_path = os.path.splitext(self.path)
+        request_extension = split_path[1]
+
+        if request_extension is "" or request_extension is ".html":
+            conUpdate("Client " + BaseHTTPRequestHandler.address_string(self) + "-- GET request received at" + time.asctime())
+            if self.path in routes:
+                handler = TemplateHandler()
+                handler.find(routes[self.path])
+            else:
+                errUpdate("Client " + BaseHTTPRequestHandler.address_string(self) + "-- BAD request received on " + time.asctime())
+                handler = BadRequestHandler()
+
+        elif request_extension is ".py":
+            errUpdate("Client " + BaseHTTPRequestHandler.address_string(self) + "-- BAD request received on " + time.asctime())
+            handler = BadRequestHandler()
+
+        else:
+            handler = StaticHandler()
+            handler.find(self.path)
+
+        self.respond({
+            'handler': handler
+        })
+
+    def handle_http(self,  handler):
+
+        status_code = handler.getStatus()
+        self.send_response(status_code)
+
+        if status_code is 200:
+            content = handler.getContents()
+            self.send_header('Content-type', handler.getContentType())
+
+        else:
+            errUpdate("Client " + BaseHTTPRequestHandler.address_string(self) + "-- request not found on " + time.asctime())
+            content = "404 Not Found"
+
+        self.end_headers()
+
+        if isinstance(content, (bytes, bytearray)):
+            return content
+
+        return bytes(content, 'UTF-8')
+
+    def respond(self, opts):
+        response = self.handle_http(opts['handler'])
+        self.wfile.write(response)
+
+"""MAIN FILE"""
+HOST_NAME = '0.0.0.0'
+PORT_NUMBER = 8080
+httpd = ThreadingHTTPServer((HOST_NAME, PORT_NUMBER), Server)
+server_thread = threading.Thread(target=httpd.serve_forever)
+
+"""Button Definition and Initialization"""
+#server = tws()
+def press(button):
+    global server_thread, HOST_NAME, PORT_NUMBER
+    if button == "Start":
+        server_thread.start()
+        out = ('Server UP - %s:%s' % (HOST_NAME, PORT_NUMBER))
+        app.setMessage("c1", out)
+    if button == "Stop":
+        httpd.server_close()
+        out = ('Server DOWN - %s:%s' % (HOST_NAME, PORT_NUMBER))
+        app.setMessage("c2", out)
+
+
+
+app.startFrame("ControlPanel", row=4, column=0, colspan=2)
+app.setButtonFont(14)
+app.addButtons(["Start", "Stop"], press)
+app.stopFrame()
+
+app.go()
